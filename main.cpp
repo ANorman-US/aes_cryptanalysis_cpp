@@ -35,8 +35,8 @@ struct Individual{
     }
 };
 
-double calculateFitness(const array<unsigned char, 16> &, const array<array<double, 2>,2> &);
-void initPop(int, array<Individual, POPULATION_SIZE> &, const array<array<double,2>,2> &);
+double calculateFitness(const array<unsigned char, 16> &, const array<unsigned char, 16> &, const array<array<double, 2>,2> &);
+void initPop(int, array<Individual, POPULATION_SIZE> &, const array<unsigned char, 16> &, const array<array<double,2>,2> &);
 void geneticAlgorithm(array<Individual, POPULATION_SIZE>&, const double&, const array<array<double, 2>,2> &, const array<unsigned char, 16>&, const array<unsigned char, 16>&);
 bool isGoal(const array<unsigned char, 16>&, const array<unsigned char, 16> &, const array<unsigned char, 16> &);
 
@@ -66,7 +66,7 @@ int main()
 
             //init population
             array<Individual, POPULATION_SIZE> population;
-            initPop(POPULATION_SIZE, population, tMatrixControl);
+            initPop(POPULATION_SIZE, population, plainText, tMatrixControl);
             cout << "Key is \n";
             for(int i=0;i<16;i++)
                 cout << (int) key[i];
@@ -116,7 +116,7 @@ void geneticAlgorithm(array<Individual, POPULATION_SIZE> &population, const doub
             temp = pq.top();
             pq.pop();
             Crypto::flipBytes(temp.key);
-            temp.fitness = calculateFitness(temp.key, tMatrixControl);
+            temp.fitness = calculateFitness(temp.key, plainText, tMatrixControl);
             duplicatePrevention.insert(temp);
         }
         int tempIndex = 0;
@@ -198,7 +198,7 @@ void geneticAlgorithm(array<Individual, POPULATION_SIZE> &population, const doub
                     child.key[j] = rand () % 16;//not guaranteed to be different
             }
 
-            child.fitness = calculateFitness(child.key, tMatrixControl);
+            child.fitness = calculateFitness(child.key, plainText, tMatrixControl);
             cout << child.fitness << endl;
             cout << Crypto::hammingDistanceBits(GLOBAL_KEY, child.key) << endl;
             children[i] = child;
@@ -238,7 +238,7 @@ bool isGoal(const array<unsigned char, 16>&key, const array<unsigned char, 16> &
     return false;
 }
 
-void initPop(int, array<Individual, POPULATION_SIZE> &p, const array<array<double, 2>,2> &tMatrixControl)
+void initPop(int, array<Individual, POPULATION_SIZE> &p, const array<unsigned char, 16> &plainText, const array<array<double, 2>,2> &tMatrixControl)
 {
     Individual ind;
     set<array<unsigned char, 16>> keySet;
@@ -248,16 +248,20 @@ void initPop(int, array<Individual, POPULATION_SIZE> &p, const array<array<doubl
         Crypto::generateRandomKey(ind.key);
         if(keySet.insert(ind.key).second)
         {
-            ind.fitness = calculateFitness(ind.key, tMatrixControl);
+            ind.fitness = calculateFitness(ind.key, plainText, tMatrixControl);
             p[index] = ind;
             index++;
         }
     }
 }
 
-double calculateFitness(const array<unsigned char, 16> &keyVariant, const array<array<double, 2>,2> &tMatrixControl)
+double calculateFitness(const array<unsigned char, 16> &keyVariant, const array<unsigned char, 16> &plainText, const array<array<double, 2>,2> &tMatrixControl)
 {
-    Huffman huffman(keyVariant);
+    AES aes;
+    array<unsigned char, 16> state = plainText;
+    aes.encrypt(state, keyVariant);
+    Crypto::encodeText(state, plainText);
+    Huffman huffman(state);
     array<array<double, 2>,2> tMatrixVariant;
     Markov::generateMarkovTransitionMatrix(huffman.getHuffmanCodes(), tMatrixVariant);
     double diff = Crypto::markovDifference(tMatrixControl, tMatrixVariant);
